@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/lonord/sse"
 )
@@ -27,12 +28,14 @@ var (
 	dataLock   sync.RWMutex
 	sseService *sse.Service
 
+	dataID    string
 	dataBytes []byte
 	dataType  string
 )
 
 func init() {
 	sseService = sse.NewService()
+	dataID = fmt.Sprintf("%d", time.Now().Unix())
 	dataBytes = make([]byte, 0)
 	dataType = "text/plain"
 }
@@ -61,6 +64,10 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		dataID = r.URL.Query().Get("id")
+		if dataID == "" {
+			dataID = fmt.Sprintf("%d", time.Now().Unix())
+		}
 		dataType = r.Header.Get("Content-Type")
 		var b bytes.Buffer
 		io.Copy(&b, r.Body)
@@ -68,7 +75,7 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "ok")
 		log.Printf("put data %s (%d bytes)\n", dataType, b.Len())
-		sseService.Broadcast(sse.Event{Data: "NewData"})
+		sseService.Broadcast(sse.Event{ID: dataID, Data: "NewData"})
 
 	} else {
 		w.WriteHeader(http.StatusMethodNotAllowed)
