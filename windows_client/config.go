@@ -14,7 +14,7 @@ var config struct {
 
 func init() {
 	// default values
-	config.URL = "https://uniclip.lonord.name"
+	config.URL = "http://127.0.0.1:8080"
 
 	cDir, err := os.UserConfigDir()
 	if err != nil {
