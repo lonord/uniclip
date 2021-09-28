@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -34,6 +35,14 @@ func onReady() {
 	systray.SetTemplateIcon(icon, icon)
 	systray.SetTitle("uniclip")
 	systray.SetTooltip("uniclip")
+
+	mEditCfg := systray.AddMenuItem("编辑配置", "打开配置文件")
+	go func() {
+		for range mEditCfg.ClickedCh {
+			openConfig()
+		}
+	}()
+
 	mQuitOrig := systray.AddMenuItem("退出", "退出uniclip")
 	go func() {
 		<-mQuitOrig.ClickedCh
@@ -152,4 +161,11 @@ func parseImageWithType(b []byte, contentType string) (image.Image, error) {
 func clipboardWrite(fmt clipboard.Format, b []byte) {
 	clipboard.Write(fmt, b)
 	atomic.StoreInt64(&lastWritten, time.Now().Unix())
+}
+
+func openConfig() {
+	cmd := exec.Command("cmd", "/C", "start", mustGetConfigFilePath())
+	if err := cmd.Run(); err != nil {
+		fmt.Println("open config file error:", err)
+	}
 }
