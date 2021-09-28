@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"net"
+	"os"
 	"time"
 )
 
@@ -11,14 +11,10 @@ var (
 )
 
 func init() {
-	netInterfaces, err := net.Interfaces()
-	if err == nil && len(netInterfaces) > 0 {
-		netIf := netInterfaces[0]
-		systemID = string(netIf.HardwareAddr)
-		if len(systemID) > 0 {
-			return
-		}
+	name, err := os.Hostname()
+	if err == nil {
+		systemID = name
+	} else {
+		systemID = fmt.Sprintf("%d", time.Now().Unix())
 	}
-
-	systemID = fmt.Sprintf("%d", time.Now().Unix())
 }

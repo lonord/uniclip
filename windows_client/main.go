@@ -12,8 +12,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/getlantern/systray"
 	"github.com/r3labs/sse/v2"
@@ -22,6 +23,8 @@ import (
 
 //go:embed icon.ico
 var icon []byte
+
+var lastWritten int64
 
 func main() {
 	systray.Run(onReady, nil)
@@ -58,10 +61,10 @@ func watchClipboard() {
 }
 
 func watchServer() {
-	client := sse.NewClient(path.Join(config.URL, "watch"))
+	client := sse.NewClient(config.URL + "/watch")
 	client.Subscribe("messages", func(msg *sse.Event) {
 		if string(msg.ID) != systemID {
-			res, err := http.Get(path.Join(config.URL, "data"))
+			res, err := http.Get(config.URL + "/data")
 			if err != nil {
 				fmt.Println("get clipboard data error:", err)
 				return
@@ -75,10 +78,10 @@ func watchServer() {
 			io.Copy(&buf, res.Body)
 			contentType := res.Header.Get("Content-Type")
 			if strings.HasPrefix(contentType, "text/") {
-				clipboard.Write(clipboard.FmtText, buf.Bytes())
+				clipboardWrite(clipboard.FmtText, buf.Bytes())
 			} else if strings.HasPrefix(contentType, "image/") {
 				if contentType == "image/png" {
-					clipboard.Write(clipboard.FmtImage, buf.Bytes())
+					clipboardWrite(clipboard.FmtImage, buf.Bytes())
 				} else {
 					img, err := parseImageWithType(buf.Bytes(), contentType)
 					if err != nil {
@@ -91,9 +94,8 @@ func watchServer() {
 						fmt.Println("encode png error:", err)
 						return
 					}
-					clipboard.Write(clipboard.FmtImage, pngBuf.Bytes())
+					clipboardWrite(clipboard.FmtImage, pngBuf.Bytes())
 				}
-				//
 			} else {
 				fmt.Println("unsupported content type:", contentType)
 			}
@@ -102,6 +104,11 @@ func watchServer() {
 }
 
 func sendToServer(b []byte, mime string) {
+	// check and bypass content which written from server just now
+	if time.Now().Unix()-atomic.LoadInt64(&lastWritten) < 3 {
+		return
+	}
+
 	r := bytes.NewBuffer(b)
 	sURL, err := buildPostURL()
 	if err != nil {
@@ -118,7 +125,7 @@ func sendToServer(b []byte, mime string) {
 }
 
 func buildPostURL() (string, error) {
-	u, err := url.Parse(path.Join(config.URL, "data"))
+	u, err := url.Parse(config.URL + "/data")
 	if err != nil {
 		return "", err
 	}
@@ -140,4 +147,9 @@ func parseImageWithType(b []byte, contentType string) (image.Image, error) {
 	default:
 		return nil, fmt.Errorf("unsupported image type: %s", contentType)
 	}
+}
+
+func clipboardWrite(fmt clipboard.Format, b []byte) {
+	clipboard.Write(fmt, b)
+	atomic.StoreInt64(&lastWritten, time.Now().Unix())
 }
