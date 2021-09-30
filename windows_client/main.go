@@ -71,6 +71,9 @@ func watchClipboard() {
 
 func watchServer() {
 	client := sse.NewClient(config.URL + "/watch")
+	client.Connection = &http.Client{
+		Transport: &http.Transport{DisableCompression: true},
+	}
 	client.Subscribe("messages", func(msg *sse.Event) {
 		if string(msg.ID) != systemID {
 			res, err := http.Get(config.URL + "/data")
